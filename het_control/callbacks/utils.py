@@ -18,8 +18,6 @@ from tensordict import TensorDict, TensorDictBase
 # Note: Ensure these paths are correct for your project structure.
 from het_control.models.het_control_mlp_empirical import HetControlMlpEmpirical
 from het_control.models.het_control_mlp_empirical_team import HetControlMlpEmpiricalTeam
-from het_control.models.het_control_mlp_esc import HetControlMlpEsc
-from het_control.models.het_control_mlp_snd import HetControlMlpEscSnd
 
 from het_control.snd import compute_behavioral_distance
 from het_control.utils import overflowing_logits_norm
@@ -28,9 +26,7 @@ from het_control.utils import overflowing_logits_norm
 # This tuple defines the model classes that the recursive search will look for.
 HET_CONTROL_MODELS = (
     HetControlMlpEmpirical,
-    HetControlMlpEmpiricalTeam,
-    HetControlMlpEsc,
-    HetControlMlpEscSnd,
+    HetControlMlpEmpiricalTeam
 )
 
 def _find_model_recursively(module: nn.Module) -> Optional[nn.Module]:

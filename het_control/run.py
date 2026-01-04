@@ -128,15 +128,16 @@ ABS_CONFIG_PATH = "/home/svarp/Desktop/Projects/ad2c/ControllingBehavioralDivers
 CONFIG_NAME = "navigation_ippo"  # Make sure 'navigation_ippo.yaml' exists in the folder above!
 SAVE_PATH = "/home/svarp/Desktop/Projects/ad2c/ControllingBehavioralDiversity/model_checkpoints/navigation_ippo_esc/"
 
-save_interval = 600000
+save_interval = 60000
 desired_snd = -1.0
-max_frame = 6000000
+max_frame = 600000
 
 GlobalHydra.instance().clear()
 
 sys.argv = [
     "dummy.py",
     "model=hetcontrolmlpempiricalteam",
+    # "model=hetcontrolmlpempirical",
     f"model.desired_snd={desired_snd}",
     f"experiment.max_n_frames={max_frame}",
     f"experiment.checkpoint_interval={save_interval}",

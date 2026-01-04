@@ -73,7 +73,7 @@ def get_experiment(cfg: DictConfig) -> Experiment:
         seed=cfg.seed,
         config=experiment_config,
         callbacks=[
-            # SndCallback(),  # assumes single "agents" group
+            # SndCallback(),
             # ExtremumSeekingController(  # assumes single "agents" group
             #             control_group="agents",
             #             initial_snd=0.0,
@@ -112,7 +112,7 @@ SAVE_PATH = "/home/svarp/Desktop/Projects/ad2c/ControllingBehavioralDiversity/mo
 
 save_interval = 600000
 desired_snd = -1.0
-max_frame = 6000000
+max_frame = 600000
 
 GlobalHydra.instance().clear()
 

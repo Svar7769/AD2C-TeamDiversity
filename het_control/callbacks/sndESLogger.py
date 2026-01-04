@@ -8,7 +8,6 @@ from tensordict import TensorDictBase
 from benchmarl.experiment import Experiment
 from benchmarl.experiment.callback import Callback
 from het_control.models.het_control_mlp_empirical import HetControlMlpEmpirical
-from het_control.models.het_control_mlp_snd import HetControlMlpEscSnd
 from .utils import get_het_model
 
 import matplotlib.pyplot as plt

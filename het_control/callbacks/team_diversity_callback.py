@@ -1,25 +1,26 @@
+from itertools import combinations
 from typing import List
 
-import io
 import torch
-import wandb
-from matplotlib import pyplot as plt
-from PIL import Image
 from tensordict import TensorDict, TensorDictBase
 
 from benchmarl.experiment.callback import Callback
 from het_control.callbacks.utils import get_het_model
-from het_control.snd import compute_behavioral_distance
+from het_control.snd import compute_behavioral_distance, compute_statistical_distance
 
 
 class TeamDiversityCallback(Callback):
-    """Logs intra-team diversity metrics and plots during evaluation."""
+    """Logs intra-team diversity metrics during evaluation."""
 
     def on_evaluation_end(self, rollouts: List[TensorDictBase]):
         if not rollouts:
             return
 
         logs = {}
+        group_actions = {}
+        group_action_dims = {}
+        group_batch_shapes = {}
+
         for group in self.experiment.group_map.keys():
             if len(self.experiment.group_map[group]) <= 1:
                 continue
@@ -28,49 +29,76 @@ class TeamDiversityCallback(Callback):
             model = get_het_model(policy)
             if model is None:
                 continue
-
-            obs_key = (group, "observation")
-            if obs_key not in rollouts[0].keys(include_nested=True):
-                continue
-
-            episode_divs = []
-            for rollout in rollouts:
-                obs = rollout.get(obs_key)
-                td_in = TensorDict({model.in_key: obs}, batch_size=obs.shape[:-2])
-                with torch.no_grad():
-                    td_out = model._forward(
-                        td_in, compute_estimate=False, update_estimate=False
-                    )
-                    actions = td_out.get(model.out_key)
-                    if model.probabilistic:
-                        actions = actions.chunk(2, -1)[0]
-                agent_action_list = list(actions.unbind(dim=-2))
-                distance = compute_behavioral_distance(agent_action_list, just_mean=True)
-                mean_div = distance.mean().item()
-                episode_divs.append(mean_div)
-
-            if not episode_divs:
-                continue
-
-            mean_div = float(torch.tensor(episode_divs).mean().item())
-            logs[f"eval/team_diversity/{group}/intra_mean"] = mean_div
-            logs[f"Visuals/team_diversity_{group}_intra"] = self._plot_diversity(
-                episode_divs, group
+            
+            # Concatenate observations across all rollouts
+            obs = torch.cat(
+                [rollout.get((group, "observation")) for rollout in rollouts], dim=0
             )
+            
+            # Wrap in TensorDict with correct batch size
+            td_obs = TensorDict({model.in_key: obs}, batch_size=obs.shape[:-1])
+                
+            agent_actions = []
+            for i in range(model.n_agents):
+                with torch.no_grad():
+                    # Pass TensorDict to the model to avoid AttributeError
+                    td_out = model._forward(td_obs, agent_index=i, compute_estimate=False)
+                    actions = td_out.get(model.out_key)
+                    agent_actions.append(actions)
+
+            group_actions[group] = agent_actions
+            group_action_dims[group] = agent_actions[0].shape[-1]
+            group_batch_shapes[group] = agent_actions[0].shape[:-1]
+
+            # Intra-team diversity (average pairwise distance within group)
+            distance = compute_behavioral_distance(agent_actions, just_mean=True)
+            logs[f"eval/{group}/intra_team_diversity"] = distance.mean().item()
+
+        # Inter-team diversity (average pairwise distance across teams)
+        group_names = list(group_actions.keys())
+        for t1, t2 in combinations(group_names, 2):
+            if group_action_dims[t1] != group_action_dims[t2]:
+                continue
+            if group_batch_shapes[t1] != group_batch_shapes[t2]:
+                continue
+
+            pair_results = []
+            for actions_i in group_actions[t1]:
+                for actions_j in group_actions[t2]:
+                    pair_results.append(
+                        compute_statistical_distance(actions_i, actions_j, just_mean=True)
+                    )
+
+            if not pair_results:
+                continue
+
+            inter_distance = torch.stack(pair_results, dim=-1)
+            logs[f"eval/inter_team_diversity/{t1}_vs_{t2}"] = (
+                inter_distance.mean().item()
+            )
+
+        # Global system SND (across all agents) when shapes align
+        if group_names:
+            first_group = group_names[0]
+            action_dim = group_action_dims[first_group]
+            batch_shape = group_batch_shapes[first_group]
+
+            all_actions = []
+            all_match = True
+            for group in group_names:
+                if group_action_dims[group] != action_dim:
+                    all_match = False
+                    break
+                if group_batch_shapes[group] != batch_shape:
+                    all_match = False
+                    break
+                all_actions.extend(group_actions[group])
+
+            if all_match and len(all_actions) > 1:
+                global_distance = compute_behavioral_distance(
+                    all_actions, just_mean=True
+                )
+                logs["eval/system/snd"] = global_distance.mean().item()
 
         if logs:
             self.experiment.logger.log(logs, step=self.experiment.n_iters_performed)
-
-    def _plot_diversity(self, values: List[float], group: str) -> wandb.Image:
-        fig, ax = plt.subplots(figsize=(10, 4))
-        ax.plot(values, marker="o")
-        ax.set_title(f"Intra-Team Diversity ({group})")
-        ax.set_xlabel("Episode")
-        ax.set_ylabel("Pairwise Distance")
-        ax.grid(True, linestyle="--", alpha=0.6)
-
-        buf = io.BytesIO()
-        fig.savefig(buf, format="png")
-        buf.seek(0)
-        plt.close(fig)
-        return wandb.Image(Image.open(buf))

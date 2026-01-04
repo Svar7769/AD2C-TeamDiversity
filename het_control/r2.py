@@ -93,7 +93,7 @@ if __name__ == "__main__":
         "task=vmas/navigation",
         "algorithm=ippo",
         "model=hetcontrolmlpempirical",
-        'experiment.restore_file="outputs/2025-10-18/18-32-09/AD2C_ippo_navigation__25_10_18-18_32_12/checkpoints/checkpoint_3000000.pt"',
+        'experiment.restore_file="/home/svarp/Desktop/Projects/ad2c/ControllingBehavioralDiversity/model_checkpoints/navigation_team_ippo/ippo_navigation_team_hetcontrolmlpempiricalteam__fb96521b_26_01_03-00_57_41/checkpoints/checkpoint_1200000.pt"',
         "experiment.max_n_frames=5000"
     ]
 
