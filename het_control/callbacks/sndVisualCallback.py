@@ -256,11 +256,12 @@ class SNDVisualizerCallback(Callback):
         actions = []
         for i in range(model.n_agents):
             temp_td = TensorDict(
-                {(group, "observation"): obs},
+                {model.in_key: obs},
                 batch_size=obs.shape[:-1],
             )
             action_td = model._forward(temp_td, agent_index=i, compute_estimate=False)
-            actions.append(action_td.get(model.out_key))
+            agent_out = action_td.get(model.out_key)
+            actions.append(agent_out[..., i, :])
         return actions
 
     def _pairwise_to_matrix(self, pairwise, n_agents):
@@ -299,6 +300,23 @@ class SNDVisualizerCallback(Callback):
 
                 if len(agent_actions) <= 1:
                     continue
+
+                action_dims = [a.shape[-1] for a in agent_actions]
+                unique_dims = sorted(set(action_dims))
+                if len(unique_dims) > 1:
+                    max_dim = max(unique_dims)
+                    padded_actions = []
+                    for action in agent_actions:
+                        dim = action.shape[-1]
+                        if dim == max_dim:
+                            padded_actions.append(action)
+                        else:
+                            pad_shape = (*action.shape[:-1], max_dim - dim)
+                            pad = torch.zeros(
+                                pad_shape, device=action.device, dtype=action.dtype
+                            )
+                            padded_actions.append(torch.cat([action, pad], dim=-1))
+                    agent_actions = padded_actions
 
                 pairwise_distances = compute_behavioral_distance(
                     agent_actions, just_mean=not self.all_probabilistic
