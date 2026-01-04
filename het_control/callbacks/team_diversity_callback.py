@@ -49,6 +49,9 @@ class TeamDiversityCallback(Callback):
             group_actions[group] = agent_actions
             group_action_dims[group] = agent_actions[0].shape[-1]
             group_batch_shapes[group] = agent_actions[0].shape[:-1]
+            print(
+                f"[TeamDiversityCallback] group={group} action_dim={group_action_dims[group]}"
+            )
 
             # Intra-team diversity (average pairwise distance within group)
             distance = compute_behavioral_distance(agent_actions, just_mean=True)
